@@ -1,0 +1,17 @@
+To start:
+
+Install Ollama
+
+Go to CMD and run the command:
+
+ollama run llama3.2:3b
+
+Make virtual envioronment and run
+
+pip install -r requirements.txt
+
+python main.py
+
+main: Currently working features, do not change. (Equivalent to production)
+tester: In Progress work, experimental features and concepts.
+
