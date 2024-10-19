@@ -9,7 +9,7 @@ model = OllamaLLM(model="llama3.2:3b")
 # Global variable to hold the previous content for continuity
 previous_content = ""
 
-def generate_section_names(CName: str, Dif: str, SecNo: str, AdDetails: str):
+def generate_section_names(CName: str, Dif: str, SecNo: str, AdDetails: str):   #Prime Function
     
     SectionNameGenerationPrompt = """
     Ignore all previous instructions and context. Focus on this.
@@ -80,58 +80,49 @@ def sectionContentGenerator(course_name, section, wordlimit, difficulty):
     
     return secBody
 
-def sectionDictionaryGenerator(course_name, section_list, wordlimit, difficulty):
+def sectionDictionaryGenerator(course_name, section_list, wordlimit, difficulty): #Prime Function
     section_dict = {}
     for section in section_list:
         section_dict[section] = sectionContentGenerator(course_name=course_name, section=section, wordlimit=wordlimit, difficulty=difficulty)
     return section_dict
 
 
-def generateQuiz(course_name, difficulty, noOfQuestions, sectionBody):
+###Quiz Generation Area
+
+previous_quizzes = ""
+
+def generateQuiz(course_name, difficulty, sectionBody):
     QuizGenerationPrompt = f"""
-    You are an expert quiz creator. Generate a String with {noOfQuestions} quiz questions based on the course name and section body provided.
-    The questions should match the difficulty level: {difficulty}.
-    Each question should have 4 options, among which 1 must be correct.
-    Each question should have the following format,seperated by ~.
-    Two questions should be seperated by @$@.
-
-    The question format is:
-
+    You are an AI quiz generator. Your task is to create one quiz question, strictly following the given format.
+    
+    Rules:
+    1. The output **MUST** only contain the question and options, formatted exactly as follows:
     QuestionBody~Option1~Option2~Option3~Option4~CorrectOptionNumber
-
-    and two questions are seperated as
-
-    Question1@$@Question2
-
-    For example, 
-    course_name:Indian Cities
-    difficulty:Beginner
-    noOfQuestions:2
-    sectionBody:New Delhi is the Capital of India. Previously, Kolkata was the capital of India as well, but it was
-    moved to Delhi for it's centralized position.
-
-
-    Output: 
-    What is the capital of India?~Kolkata~Kochi~Pakistan~New Delhi~4@$@Why was the capital of India Changed?~Cost~Centralized Position~Illogical Whim~Random Selection~2
-
+    2. You must provide exactly 4 options. One of them must be the correct answer.
+    3. Do not include any greetings, extra information, or unnecessary words in the output.
+    4. The output should not contain course names or section titles.
+    5. The question must be relevant to the sectionBody and match the difficulty level: {difficulty}.
+    6. Make sure it doesn't repeat any questions from previous quizzes: {previous_quizzes}.
     
-    Make sure the questions are relevant to the content of the course and the section body:
-    Do not add any extra words, greetings, concluding statements, or text to the output.
-    It should have only the String.
-    Now generate on the topic:
+    Format Example:
+    What is the capital of India?~Kolkata~Chennai~New Delhi~Mumbai~3
     
-    Course Name: {course_name}
+    Now generate a question based on:
     Section Body: {sectionBody}
-    
+
+    After generation, make sure the format is correct and matches.
     """
 
+    # Generate quiz using the provided template and model invocation
     QuizPrompt = ChatPromptTemplate.from_template(QuizGenerationPrompt)
     QuizChain = QuizPrompt | model
 
-    quiz_json = QuizChain.invoke({"course_name": course_name, "difficulty": difficulty, "noOfQuestions": noOfQuestions, "sectionBody": sectionBody}).strip()
+    # Call the chain and strip extra whitespace to ensure proper formatting
+    quiz = QuizChain.invoke({"course_name": course_name, "difficulty": difficulty, "sectionBody": sectionBody}).strip()
     
-    # Parse the returned JSON string into a Python dictionary
-    return quiz_json
+    # Return the generated quiz question in the correct format
+    return quiz
+
 
 class Question:
     def __init__(self, question_string: str):
@@ -147,7 +138,8 @@ class Question:
             self.option3 = parts[3]                     # Third option
             self.option4 = parts[4]                     # Fourth option
             self.correctoptionNumber = int(parts[5])    # Correct option number
-        except e:
+        except Exception as e:
+            print(question_string)
             print(parts)
             print(e)
 
@@ -157,20 +149,9 @@ class Question:
                 f"Correct Option: {self.correctoptionNumber}")
 
 
-def parse_questions(question_string: str):
-    # Split the main string by the delimiter for multiple questions
-    question_parts = question_string.split('@$@')
+
+
     
-    # Create a list to store Question objects
-    questions = []
-
-    # Iterate through each question part and create a Question object
-    for part in question_parts:
-        # Create a Question object and append it to the list
-        question = Question(part)
-        questions.append(question)
-
-    return questions
 
 def convert_questions_to_json(questions):
     # Convert the list of Question objects to a list of dictionaries
@@ -188,15 +169,22 @@ def validate_json_string(json_string):
     except json.JSONDecodeError as e:
         print("Invalid JSON:", e)
 
-def getQuizJSONforSection(course_name, difficulty, noOfQuestions, sectionBody):
-    quizarraystring=generateQuiz(course_name=course_name,difficulty=difficulty,noOfQuestions=noOfQuestions,sectionBody=sectionBody)
-    parsed_questions=parse_questions(quizarraystring)
-    json_question=convert_questions_to_json(parsed_questions)
-    #validate_json_string(json_question)
+def getQuizJSONforSection(course_name, difficulty, noOfQuestions, sectionBody): #Prime Function
+    global previous_quizzes
+    questions=[]
+    for i in range(noOfQuestions):
+        questionstring=generateQuiz(course_name=course_name,difficulty=difficulty,sectionBody=sectionBody)
+        previous_quizzes+=" "+questionstring
+        question=Question(questionstring)
+        questions.append(question)
+    json_question=convert_questions_to_json(questions)
+    validate_json_string(json_question)
+    previous_quizzes=""
     return json_question
 
 
-
+##Testing Section
+'''
 courseName = "Indian Politics"
 dif = "Advanced"
 noOfSections = 3
@@ -204,4 +192,6 @@ additionalInfo = ""
 sections = generate_section_names(courseName, dif, noOfSections, additionalInfo)
 sectiondict=sectionDictionaryGenerator(course_name=courseName, section_list=sections, wordlimit=200, difficulty=dif)
 firstSection=sectiondict[sections[0]]
-print(getQuizJSONforSection(course_name=courseName,difficulty=dif,noOfQuestions=4,sectionBody=firstSection))
+#print(generateQuiz(course_name=courseName,difficulty=dif,sectionBody=firstSection))
+print(getQuizJSONforSection(course_name=courseName,difficulty=dif,noOfQuestions=1,sectionBody=firstSection))
+'''

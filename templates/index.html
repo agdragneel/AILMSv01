@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Course Content Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #F0F0F0;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        
+        /* Styling for the main container */
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Header styles */
+        h1, h2 {
+            color: #FFA24C;
+        }
+        
+        /* Section title styles */
+        h2 {
+            font-size: 24px;
+            margin-bottom: 15px;
+            color: #FF77B7;
+        }
+        
+        /* Section content styles */
+        p {
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        /* Quiz container styling */
+        .quiz-container {
+            background-color: #FEEC37;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        /* Quiz question styling */
+        .quiz-question {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        /* Quiz options styling */
+        .quiz-option {
+            background-color: #FFA24C;
+            color: white;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            border: none;
+            font-size: 16px;
+        }
+        
+        .quiz-option:hover {
+            background-color: #FF77B7;
+        }
+        
+        .correct {
+            background-color: #B1D690 !important;
+        }
+        
+        .wrong {
+            background-color: #FF4C4C !important;
+        }
+        
+        /* Navigation buttons styling */
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin: 10px 5px;
+        }
+        
+        #prev-btn {
+            background-color: #FFA24C;
+            color: white;
+        }
+        
+        #next-btn {
+            background-color: #FEEC37;
+            color: #333;
+        }
+        
+        button:hover {
+            opacity: 0.8;
+        }
+        
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        /* Footer for spacing at bottom */
+        footer {
+            margin-top: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+        
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Course Content Generator</h1>
+
+      <form id="input-form">
+        <div>
+          <label for="course_name">Course Name:</label>
+          <input type="text" id="course_name" name="course_name" required />
+        </div>
+        <div>
+          <label for="difficulty">Difficulty:</label>
+          <input type="text" id="difficulty" name="difficulty" required />
+        </div>
+        <div>
+          <label for="additional_info">Additional Notes:</label>
+          <textarea id="additional_info" name="additional_info"></textarea>
+        </div>
+        <button type="submit">Generate</button>
+      </form>
+
+      <div id="content-display" class="hidden">
+        <h2 id="section-title"></h2>
+        <p id="section-body"></p>
+        <h3>Quiz</h3>
+        <div id="quiz-container"></div>
+        <!-- Quiz options will be added here dynamically -->
+
+        <button id="prev-section" class="hidden">Previous</button>
+        <button id="next-section">Next</button>
+      </div>
+    </div>
+
+    <script>
+      let sections = [];
+      let sectionContent = {};
+      let sectionQuiz = {};
+      let currentIndex = 0;
+
+      document
+        .getElementById("input-form")
+        .addEventListener("submit", function (event) {
+          event.preventDefault();
+
+          const formData = new FormData(this);
+
+          fetch("/generate", {
+            method: "POST",
+            body: formData,
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              sections = data.sections;
+              sectionContent = data.content;
+              sectionQuiz = data.quiz;
+
+              currentIndex = 0;
+              displaySection();
+
+              document
+                .getElementById("content-display")
+                .classList.remove("hidden");
+            });
+        });
+
+      document
+        .getElementById("next-section")
+        .addEventListener("click", function () {
+          if (currentIndex < sections.length - 1) {
+            currentIndex++;
+            displaySection();
+          }
+        });
+
+      document
+        .getElementById("prev-section")
+        .addEventListener("click", function () {
+          if (currentIndex > 0) {
+            currentIndex--;
+            displaySection();
+          }
+        });
+
+      function displaySection() {
+        document.getElementById("section-title").textContent =
+          sections[currentIndex];
+        document.getElementById("section-body").textContent =
+          sectionContent[sections[currentIndex]];
+        displayQuiz(sectionQuiz[sections[currentIndex]]);
+
+        // Show/Hide buttons based on section index
+        document
+          .getElementById("prev-section")
+          .classList.toggle("hidden", currentIndex === 0);
+        document
+          .getElementById("next-section")
+          .classList.toggle("hidden", currentIndex === sections.length - 1);
+      }
+
+      function displayQuiz(quizData) {
+        const quizContainer = document.getElementById("quiz-container");
+        quizContainer.innerHTML = ""; // Clear previous quiz
+
+        const quiz = JSON.parse(quizData)[0]; // Assuming only 1 question per section
+
+        const questionElement = document.createElement("p");
+        questionElement.textContent = quiz.question_body;
+        quizContainer.appendChild(questionElement);
+
+        // Create buttons for each option
+        for (let i = 1; i <= 4; i++) {
+          const optionBtn = document.createElement("button");
+          optionBtn.textContent = quiz[`option${i}`];
+          optionBtn.classList.add("option-btn");
+          optionBtn.addEventListener("click", function () {
+            checkAnswer(i, quiz.correctoptionNumber, optionBtn);
+          });
+          quizContainer.appendChild(optionBtn);
+        }
+      }
+
+      function checkAnswer(selectedOption, correctOption, selectedButton) {
+        const optionButtons = document.querySelectorAll(".option-btn");
+
+        optionButtons.forEach((btn, index) => {
+          if (index + 1 === correctOption) {
+            btn.classList.add("correct"); // Correct answer turns green
+          } else if (index + 1 === selectedOption) {
+            btn.classList.add("wrong"); // Wrong answer selected turns red
+          }
+          btn.disabled = true; // Disable all options after an answer is selected
+        });
+      }
+    </script>
+  </body>
+</html>
