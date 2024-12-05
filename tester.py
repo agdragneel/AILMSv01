@@ -93,25 +93,39 @@ previous_quizzes = ""
 
 def generateQuiz(course_name, difficulty, sectionBody):
     QuizGenerationPrompt = f"""
-    You are an AI quiz generator. Your task is to create one quiz question, strictly following the given format.
-    
-    Rules:
-    1. The output **MUST** only contain the question and options, formatted exactly as follows:
-    QuestionBody~Option1~Option2~Option3~Option4~CorrectOptionNumber
-    2. You must provide exactly 4 options. One of them must be the correct answer.
-    3. Do not include any greetings, extra information, or unnecessary words in the output.
-    4. The output should not contain course names or section titles.
-    5. The question must be relevant to the sectionBody and match the difficulty level: {difficulty}.
-    6. Make sure it doesn't repeat any questions from previous quizzes: {previous_quizzes}.
-    
-    Format Example:
-    What is the capital of India?~Kolkata~Chennai~New Delhi~Mumbai~3
-    
-    Now generate a question based on:
-    Section Body: {sectionBody}
+You are an AI quiz generator. Your task is to create one quiz question, strictly following the given format.
 
-    After generation, make sure the format is correct and matches.
-    """
+Rules:
+1. The output **MUST** only contain the question and options, formatted exactly as follows:
+   QuestionBody~Option1~Option2~Option3~Option4~CorrectOptionNumber
+2. You must provide exactly 4 options. One of them must be the correct answer. Ensure that ONLY one answer is correct, and it is clearly distinguishable from the incorrect options. Avoid any ambiguity or overlap between the correct and incorrect options.
+3. Do not ask questions that can have multiple correct answers, partially correct answers, or subjective answers.
+4. Avoid vague or opinion-based questions (e.g., "What are popular...") or questions where answers may vary based on context.
+5. The output must not include greetings, extra information, or unnecessary words.
+6. The output should not contain course names or section titles.
+7. Ensure that the question is directly relevant to the Section Body and matches the specified difficulty level: {difficulty}.
+8. Do not repeat any questions from previous quizzes: {previous_quizzes}.
+9. All options must be plausible and relevant to the question but only ONE option should be definitively correct.
+
+Examples of allowed question types:
+- Factual (e.g., "What is the capital of India?")
+- Definition-based (e.g., "What does HTTP stand for?")
+- Process-oriented (e.g., "Which of the following is a step in data analysis?")
+
+Examples of disallowed question types:
+- Opinion-based (e.g., "What is the best...")
+- Context-dependent (e.g., "What are popular...")
+- Ambiguous (e.g., "Which of the following *could* be...")
+
+Format Example:
+What is the capital of India?~Kolkata~Chennai~New Delhi~Mumbai~3
+
+Now generate a question based on:
+Section Body: {sectionBody}
+
+After generation, validate that the format is correct, the question is unambiguous, and only one option is clearly the correct answer.
+"""
+
 
     # Generate quiz using the provided template and model invocation
     QuizPrompt = ChatPromptTemplate.from_template(QuizGenerationPrompt)
