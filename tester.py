@@ -1,6 +1,7 @@
 from langchain_ollama import OllamaLLM
 from langchain_core.prompts import ChatPromptTemplate
 import json
+import time
 
 model = OllamaLLM(model="llama3.2:3b")
 

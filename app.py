@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from tester import generate_section_names, sectionDictionaryGenerator, getQuizJSONforSection
-
+import time
 app = Flask(__name__)
 
 @app.route('/')
@@ -9,9 +9,12 @@ def index():
 
 @app.route('/generate', methods=['POST'])
 def generate_content():
+    print("Started Generating")
     course_name = request.form['course_name']
     difficulty = request.form['difficulty']
     additional_info = request.form['additional_info']
+
+    start_time = time.time()
     
     no_of_sections = 5  # Fixed as per the requirement
     sections = generate_section_names(course_name, difficulty, no_of_sections, additional_info)
@@ -21,6 +24,12 @@ def generate_content():
     for section in sections:
         quiz = getQuizJSONforSection(course_name, difficulty, 1, section_content[section])
         section_quiz[section] = quiz
+
+    end_time = time.time()
+    
+    # Calculate time taken
+    time_taken = end_time - start_time
+    print("Time Taken:",time_taken)
     
     return jsonify({'sections': sections, 'content': section_content, 'quiz': section_quiz})
 
@@ -38,4 +47,4 @@ def get_section():
     return jsonify({'title': section_title, 'content': section_body, 'quiz': section_quiz})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
