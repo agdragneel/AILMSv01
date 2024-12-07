@@ -111,12 +111,13 @@ Rules:
 Examples of allowed question types:
 - Factual (e.g., "What is the capital of India?")
 - Definition-based (e.g., "What does HTTP stand for?")
-- Process-oriented (e.g., "Which of the following is a step in data analysis?")
+
 
 Examples of disallowed question types:
 - Opinion-based (e.g., "What is the best...")
 - Context-dependent (e.g., "What are popular...")
 - Ambiguous (e.g., "Which of the following *could* be...")
+- More than one correct options(e.g., "What was used to make Ice Creams?" "Options: Milk, Sugar, Chocolate, Vanilla")
 
 Format Example:
 What is the capital of India?~Kolkata~Chennai~New Delhi~Mumbai~3
@@ -137,6 +138,22 @@ After generation, validate that the format is correct, the question is unambiguo
     
     # Return the generated quiz question in the correct format
     return quiz
+
+def validate_question_string(question_string: str) -> bool:
+    """
+    Validates the format of a generated question string.
+    The string must have exactly 6 components separated by '~'.
+    """
+    parts = question_string.split('~')
+    if len(parts) != 6:
+        return False
+    try:
+        # Check if the last part (correct option) can be cast to an integer
+        correct_option = int(parts[5].strip())
+        # Check if the correct option is between 1 and 4
+        return 1 <= correct_option <= 4
+    except ValueError:
+        return False
 
 
 class Question:
@@ -165,6 +182,21 @@ class Question:
 
 
 
+def validate_question_string(question_string: str) -> bool:
+    """
+    Validates the format of a generated question string.
+    The string must have exactly 6 components separated by '~'.
+    """
+    parts = question_string.split('~')
+    if len(parts) != 6:
+        return False
+    try:
+        # Check if the last part (correct option) can be cast to an integer
+        correct_option = int(parts[5].strip())
+        # Check if the correct option is between 1 and 4
+        return 1 <= correct_option <= 4
+    except ValueError:
+        return False
 
     
 
@@ -184,29 +216,60 @@ def validate_json_string(json_string):
     except json.JSONDecodeError as e:
         print("Invalid JSON:", e)
 
-def getQuizJSONforSection(course_name, difficulty, noOfQuestions, sectionBody): #Prime Function
+def getQuizJSONforSection(course_name, difficulty, noOfQuestions, sectionBody, max_retries=5):  
     global previous_quizzes
-    questions=[]
+    questions = []
+
     for i in range(noOfQuestions):
-        questionstring=generateQuiz(course_name=course_name,difficulty=difficulty,sectionBody=sectionBody)
-        previous_quizzes+=" "+questionstring
-        question=Question(questionstring)
-        questions.append(question)
-    json_question=convert_questions_to_json(questions)
+        retries = 0
+        while retries < max_retries:
+            try:
+                # Generate the question string
+                questionstring = generateQuiz(course_name=course_name, difficulty=difficulty, sectionBody=sectionBody)
+                # Validate the generated question string
+                if not validate_question_string(questionstring):
+                    raise ValueError("Invalid question format")
+
+                # Append to previous quizzes to avoid duplicates
+                previous_quizzes += " " + questionstring
+                # Attempt to create the Question object
+                question = Question(questionstring)
+                # If successful, add to the list and break the loop
+                questions.append(question)
+                break
+            except Exception as e:
+                print(f"Error generating question (attempt {retries + 1}): {e}")
+                # Increment retries and try again
+                retries += 1
+
+                # Optional: Log the invalid question string for debugging
+                print(f"Invalid question string: {questionstring}")
+
+                # Reset the invalid question from previous quizzes
+                previous_quizzes = previous_quizzes.replace(questionstring, "").strip()
+
+        if retries == max_retries:
+            print("Max retries reached. Skipping this question.")
+    
+    # Convert the list of Question objects to JSON
+    json_question = convert_questions_to_json(questions)
     validate_json_string(json_question)
-    previous_quizzes=""
+    
+    # Reset the previous quizzes for the next section
+    previous_quizzes = ""
     return json_question
+
 
 
 ##Testing Section
 '''
 courseName = "Indian Politics"
 dif = "Advanced"
-noOfSections = 3
+noOfSections = 1
 additionalInfo = ""
 sections = generate_section_names(courseName, dif, noOfSections, additionalInfo)
 sectiondict=sectionDictionaryGenerator(course_name=courseName, section_list=sections, wordlimit=200, difficulty=dif)
 firstSection=sectiondict[sections[0]]
-#print(generateQuiz(course_name=courseName,difficulty=dif,sectionBody=firstSection))
-print(getQuizJSONforSection(course_name=courseName,difficulty=dif,noOfQuestions=1,sectionBody=firstSection))
+print(generateQuizJSON(course_name=courseName,difficulty=dif,sectionBody=firstSection))
+#print(getQuizJSONforSection(course_name=courseName,difficulty=dif,noOfQuestions=1,sectionBody=firstSection))
 '''
