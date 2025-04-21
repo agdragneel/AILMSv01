@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from tester import generate_section_names, sectionDictionaryGenerator, getQuizJSONforSection
+from aifunctions import generate_section_names, sectionDictionaryGenerator, getQuizJSONforSection
 import time
 app = Flask(__name__)
 
