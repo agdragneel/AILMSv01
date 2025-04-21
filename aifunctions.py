@@ -279,114 +279,48 @@ def generate_test_from_all_sections(course_name: str, difficulty: str, section_d
                 random_section = random.choice(section_titles)
                 section_content = section_dict[random_section]
 
-                # Generate quiz question using the new generateTest function
-                quiz_dict = generateTest(
+                # Generate quiz question
+                question_string = generateQuiz(
                     course_name=course_name,
                     difficulty=difficulty,
-                    sectionBody=section_content,
-                    previous_quizzes=previous_quizzes
+                    sectionBody=section_content
                 )
 
-                # Validate that the generated quiz is in the correct format
-                if not all(key in quiz_dict for key in ["question_body", "option1", "option2", "option3", "option4", "correctoptionNumber"]):
+                if not validate_question_string(question_string):
                     raise ValueError("Invalid question format")
 
-                # Add the generated quiz question to the previous quizzes
-                previous_quizzes += " " + quiz_dict["question_body"]
-                
-                # Add the valid quiz_dict directly to the list of questions
-                questions.append(quiz_dict)
+                previous_quizzes += " " + question_string
+                question = Question(question_string)
+                questions.append(question)
                 break
             except Exception as e:
                 print(f"[Attempt {retries+1}] Error generating question: {e}")
+                previous_quizzes = previous_quizzes.replace(question_string, "").strip()
                 retries += 1
 
         if retries == 5:
             print("Max retries reached. Skipping this question.")
 
     previous_quizzes = ""  # Clear for next use
-    return json.dumps(questions)
+    return convert_questions_to_json(questions)
 
 
-def generateTest(course_name, difficulty, sectionBody, previous_quizzes):
-    QuizGenerationPrompt = f"""
-You are an AI quiz generator. Your task is to create ONE multiple-choice question from the given section content.
-
-### Rules:
-1. Return your output strictly as a JSON object with these exact keys:
-   
-       "question_body": "...",
-       "option1": "...",
-       "option2": "...",
-       "option3": "...",
-       "option4": "...",
-       "correctoptionNumber": X
-  
-2. You must provide exactly 4 options. Only one should be correct. Ensure no ambiguity.
-3. Avoid questions that are opinion-based, vague, or have more than one correct answer.
-4. The question should directly relate to the section body and match the difficulty: "{difficulty}".
-5. DO NOT include the course name, section title, or any extra explanation.
-6. DOUBLE CHECK that the correct answer is absolutely accurate and distinguishable.
-7. Do not repeat any questions from previous quizzes: {previous_quizzes}
-
-### Section Content:
-{sectionBody}
-
-### Output:
-Only return a valid JSON object in the described format. Nothing else.
-"""
-
-    # Create prompt chain
-    QuizPrompt = ChatPromptTemplate.from_template(QuizGenerationPrompt)
-    QuizChain = QuizPrompt | model
-
-    # Retry generation up to 5 times if the JSON is not in the expected format
-    attempts = 0
-    while attempts < 5:
-        attempts += 1
-        
-        # Get the result and clean up any whitespace
-        quiz_json_str = QuizChain.invoke({
-            "course_name": course_name,
-            "difficulty": difficulty,
-            "sectionBody": sectionBody,
-            "previous_quizzes": previous_quizzes
-        }).strip()
-
-        try:
-            # Validate the structure of the generated JSON
-            quiz_dict = json.loads(quiz_json_str)
-            
-            # Check for the required keys in the JSON
-            required_keys = ["question_body", "option1", "option2", "option3", "option4", "correctoptionNumber"]
-            if all(key in quiz_dict for key in required_keys):
-                return quiz_dict
-            else:
-                raise ValueError("Generated JSON does not have the correct structure.")
-        
-        except (json.JSONDecodeError, ValueError):
-            # If invalid, retry after a short delay
-            if attempts < 5:
-                print(f"[Attempt {attempts}] Invalid or incomplete question format. Retrying...")
-                time.sleep(1)  # Adding a slight delay to avoid repeated generation issues
-            else:
-                raise ValueError("Failed to generate a valid quiz after 5 attempts.")
 ##Testing Section
 
 courseName = "Machine Learning"
 difficulty = "Intermediate"
-sectionCount = 3
+sectionCount = 5
 additionalInfo = "Focus on real-world applications and include a section on ethics."
-
+''''
 # Step 1: Generate section names
-print("Generating Section Name")
 section_list = generate_section_names(courseName, difficulty, sectionCount, additionalInfo)
-print("Generating Section Content")
+
 # Step 2: Generate section content
 section_dict = sectionDictionaryGenerator(course_name=courseName, section_list=section_list, wordlimit=200, difficulty=difficulty)
-print("Generating Test")
+
 # Step 3: Generate test on entire course content
-quiz_json = generate_test_from_all_sections(course_name=courseName, difficulty=difficulty, section_dict=section_dict, num_questions=5)
+quiz_json = generate_test_from_all_sections(course_name=courseName, difficulty=difficulty, section_dict=section_dict, num_questions=10)
 
 # Print or save the result
 print(quiz_json)
+'''

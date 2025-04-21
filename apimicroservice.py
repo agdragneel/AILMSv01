@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
-from tester import generate_section_names, sectionDictionaryGenerator, getQuizJSONforSection
+from aifunctions import generate_section_names, sectionDictionaryGenerator, getQuizJSONforSection
 import time
 
 app = Flask(__name__)
@@ -55,4 +55,5 @@ def get_section():
     return jsonify({'title': section_title, 'content': section_body, 'quiz': section_quiz})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    print("Trying to run")
+    app.run(host='0.0.0.0', port=5001, debug=True)
