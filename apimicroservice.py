@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
-from aifunctions import generate_section_names, sectionDictionaryGenerator, getQuizJSONforSection
+from aifunctions import generate_section_names, sectionDictionaryGenerator, getQuizJSONforSection,generateTest,generate_test_from_all_sections
 import time
 
 app = Flask(__name__)
