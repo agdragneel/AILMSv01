@@ -269,7 +269,7 @@ def getQuizJSONforSection(course_name, difficulty, noOfQuestions, sectionBody, m
     return json_question
 
 
-def generate_test_from_all_sections(course_name: str, difficulty: str, section_dict: dict, num_questions: int = 10):
+def generate_test_from_all_sections(course_name: str, difficulty: str, section_dict: dict, num_questions: int = 5):
     """
     Generates a test by picking random sections and creating a question for each.
     Returns a JSON string of the complete test.
@@ -280,12 +280,17 @@ def generate_test_from_all_sections(course_name: str, difficulty: str, section_d
     section_titles = list(section_dict.keys())
 
     for i in range(num_questions):
+        print("PRevious Quizzes:")
+        print(previous_quizzes)
+        print("----------------------------")
         print("Generating Test Question:",i+1)
         retries = 0
         while retries < 5:
             try:
                 # Pick a random section
                 random_section = random.choice(section_titles)
+                print("Selected Section:")
+                print(random_section)
                 section_content = section_dict[random_section]
 
                 # Generate quiz question using the new generateTest function
@@ -336,7 +341,7 @@ You are an AI quiz generator. Your task is to create ONE multiple-choice questio
 4. The question should directly relate to the section body and match the difficulty: "{difficulty}".
 5. DO NOT include the course name, section title, or any extra explanation.
 6. DOUBLE CHECK that the correct answer is absolutely accurate and distinguishable.
-7. Do not repeat any questions from previous quizzes: {previous_quizzes}
+7. Do not repeat any questions from previous quizzes: {previous_quizzes}, I repeat, it SHOULD ABSOLUTELY NOT BE SAME QUESTION AS IN previous quizzes.
 
 ### Section Content:
 {sectionBody}
