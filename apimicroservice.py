@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 from aifunctions import generate_section_names, sectionDictionaryGenerator, getQuizJSONforSection,generateTest,generate_test_from_all_sections
 import time
 
@@ -24,8 +24,9 @@ def generate_content():
     
     no_of_sections = 5  # Fixed as per the requirement
     sections = generate_section_names(course_name, difficulty, no_of_sections, additional_info)
+    print("Generated Section Name")
     section_content = sectionDictionaryGenerator(course_name, sections, wordlimit=200, difficulty=difficulty)
-    
+    print("Generated Section Content, Starting generating quiz")
     section_quiz = {}
     for section in sections:
         quiz = getQuizJSONforSection(course_name, difficulty, 1, section_content[section])
@@ -53,6 +54,33 @@ def get_section():
     section_quiz = quiz[section_title]
     
     return jsonify({'title': section_title, 'content': section_body, 'quiz': section_quiz})
+
+@app.route("/generate-test", methods=["POST"])
+@cross_origin()
+def generate_test():
+    data = request.json
+    print("Started Generating Test")
+    
+
+    course_name = data.get("course_name", "Default Course")
+    difficulty = data.get("difficulty", "medium")
+    content = data.get("content", {})
+
+    print("Parsed course_name:", course_name)
+    print("Parsed difficulty:", difficulty)
+    
+
+    if not content:
+        return jsonify({"error": "No content provided"}), 400
+
+    try:
+        test = generate_test_from_all_sections(course_name, difficulty, content)
+        print(test)
+        return jsonify({"test": test}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
 
 if __name__ == '__main__':
     print("Trying to run")

@@ -52,39 +52,45 @@ def generate_section_names(CName: str, Dif: str, SecNo: str, AdDetails: str):   
     return SectionList
 
 def sectionContentGenerator(course_name, section, wordlimit, difficulty):
-    global previous_content  # Access the global variable for previous content
+    global previous_content
 
-    SectionBodyGenerationPrompt = f"""
-    You are an Expert Course Author for Educational Content.
-    You are given a course_name, section name, word_limit, difficulty, and previous content. 
-    Generate a section body on the given section name (subtopic name). The number of words should be equal or near the word_limit, 
-    and the difficulty should be kept in mind while generating the content. 
-    Include relevant context from the previous sections to maintain continuity.
-    Do not add any greeting, extra messages, or any other things in the output, only the topic content.
+    SectionBodyGenerationPrompt = """
+You are an Expert Course Author for Educational Content.
+You are given a course_name, section name, word_limit, difficulty, and previous content. 
+Generate a section body on the given section name (subtopic name). The number of words should be equal or near the word_limit, 
+and the difficulty should be kept in mind while generating the content. 
+Include relevant context from the previous sections to maintain continuity.
+Do not add any greeting, extra messages, or any other things in the output, only the topic content.
 
-    Previous Content: {previous_content}
+Previous Content: {previous_content}
 
-    Generate on the following input:
+Generate on the following input:
 
-    Course Name: {course_name}
-    Section Name: {section}
-    Word Limit: {wordlimit}
-    Difficulty: {difficulty}
-    """
+Course Name: {course_name}
+Section Name: {section}
+Word Limit: {wordlimit}
+Difficulty: {difficulty}
+"""
 
+    # Fix: Tell LangChain which variables are expected in this prompt
     SecBodyPrompt = ChatPromptTemplate.from_template(SectionBodyGenerationPrompt)
     SecBodyChain = SecBodyPrompt | model
 
-    secBody = SecBodyChain.invoke({"course_name": course_name, "section": section, "wordlimit": wordlimit, "difficulty": difficulty}).strip()
-    
-    # Update previous content with the newly generated body
-    previous_content += secBody + "\n"  # Add the new content to previous content for continuity
-    
+    secBody = SecBodyChain.invoke({
+        "course_name": course_name,
+        "section": section,
+        "wordlimit": wordlimit,
+        "difficulty": difficulty,
+        "previous_content": previous_content
+    }).strip()
+
+    previous_content += secBody + "\n"
     return secBody
 
 def sectionDictionaryGenerator(course_name, section_list, wordlimit, difficulty): #Prime Function
     section_dict = {}
     for section in section_list:
+        print("Generating  section:",section)
         section_dict[section] = sectionContentGenerator(course_name=course_name, section=section, wordlimit=wordlimit, difficulty=difficulty)
     return section_dict
 
@@ -94,7 +100,7 @@ def sectionDictionaryGenerator(course_name, section_list, wordlimit, difficulty)
 previous_quizzes = ""
 
 def generateQuiz(course_name, difficulty, sectionBody):
-    QuizGenerationPrompt = f"""
+    QuizGenerationPrompt = """
 You are an AI quiz generator. You never make mistakes in marking the correct option. Your task is to create one quiz question, strictly following the given format. 
 
 Rules:
@@ -113,7 +119,6 @@ Examples of allowed question types:
 - Factual (e.g., "What is the capital of India?")
 - Definition-based (e.g., "What does HTTP stand for?")
 
-
 Examples of disallowed question types:
 - Opinion-based (e.g., "What is the best...")
 - Context-dependent (e.g., "What are popular...")
@@ -129,15 +134,18 @@ Section Body: {sectionBody}
 After generation, validate that the format is correct, the question is unambiguous, and only one option is clearly the correct answer.
 """
 
-
-    # Generate quiz using the provided template and model invocation
+    # No f-string anymore — treat as pure LangChain template
     QuizPrompt = ChatPromptTemplate.from_template(QuizGenerationPrompt)
+
     QuizChain = QuizPrompt | model
 
-    # Call the chain and strip extra whitespace to ensure proper formatting
-    quiz = QuizChain.invoke({"course_name": course_name, "difficulty": difficulty, "sectionBody": sectionBody}).strip()
-    
-    # Return the generated quiz question in the correct format
+    quiz = QuizChain.invoke({
+        "course_name": course_name,
+        "difficulty": difficulty,
+        "sectionBody": sectionBody,
+        "previous_quizzes": previous_quizzes
+    }).strip()
+
     return quiz
 
 def validate_question_string(question_string: str) -> bool:
@@ -272,51 +280,7 @@ def generate_test_from_all_sections(course_name: str, difficulty: str, section_d
     section_titles = list(section_dict.keys())
 
     for i in range(num_questions):
-        retries = 0
-        while retries < 5:
-            try:
-                # Pick a random section
-                random_section = random.choice(section_titles)
-                section_content = section_dict[random_section]
-
-                # Generate quiz question
-                question_string = generateQuiz(
-                    course_name=course_name,
-                    difficulty=difficulty,
-                    sectionBody=section_content
-                )
-
-                if not validate_question_string(question_string):
-                    raise ValueError("Invalid question format")
-
-                previous_quizzes += " " + question_string
-                question = Question(question_string)
-                questions.append(question)
-                break
-            except Exception as e:
-                print(f"[Attempt {retries+1}] Error generating question: {e}")
-                previous_quizzes = previous_quizzes.replace(question_string, "").strip()
-                retries += 1
-
-        if retries == 5:
-            print("Max retries reached. Skipping this question.")
-
-    previous_quizzes = ""  # Clear for next use
-    return convert_questions_to_json(questions)
-
-
-
-def generate_test_from_all_sections(course_name: str, difficulty: str, section_dict: dict, num_questions: int = 10):
-    """
-    Generates a test by picking random sections and creating a question for each.
-    Returns a JSON string of the complete test.
-    """
-    global previous_quizzes
-    questions = []
-
-    section_titles = list(section_dict.keys())
-
-    for i in range(num_questions):
+        print("Generating Test Question:",i+1)
         retries = 0
         while retries < 5:
             try:
@@ -354,19 +318,19 @@ def generate_test_from_all_sections(course_name: str, difficulty: str, section_d
 
 
 def generateTest(course_name, difficulty, sectionBody, previous_quizzes):
-    QuizGenerationPrompt = f"""
+    QuizGenerationPrompt = """
 You are an AI quiz generator. Your task is to create ONE multiple-choice question from the given section content.
 
 ### Rules:
 1. Return your output strictly as a JSON object with these exact keys:
-   
+
        "question_body": "...",
        "option1": "...",
        "option2": "...",
        "option3": "...",
        "option4": "...",
        "correctoptionNumber": X
-  
+
 2. You must provide exactly 4 options. Only one should be correct. Ensure no ambiguity.
 3. Avoid questions that are opinion-based, vague, or have more than one correct answer.
 4. The question should directly relate to the section body and match the difficulty: "{difficulty}".
