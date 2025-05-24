@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS, cross_origin
-from aifunctions import generate_section_names, sectionDictionaryGenerator, getQuizJSONforSection,generateTest,generate_test_from_all_sections
+from aifunctions import generate_section_names, sectionDictionaryGenerator, getQuizJSONforSection,generateTest,generate_test_from_all_sections,generateRecommendedCourses
 import time
 
 app = Flask(__name__)
@@ -22,10 +22,10 @@ def generate_content():
 
     start_time = time.time()
     
-    no_of_sections = 5  # Fixed as per the requirement
+    no_of_sections =  6 # Fixed as per the requirement
     sections = generate_section_names(course_name, difficulty, no_of_sections, additional_info)
     print("Generated Section Name")
-    section_content = sectionDictionaryGenerator(course_name, sections, wordlimit=200, difficulty=difficulty)
+    section_content = sectionDictionaryGenerator(course_name, sections, wordlimit=250, difficulty=difficulty)
     print("Generated Section Content, Starting generating quiz")
     section_quiz = {}
     for section in sections:
@@ -77,6 +77,22 @@ def generate_test():
         test = generate_test_from_all_sections(course_name, difficulty, content)
         print(test)
         return jsonify({"test": test}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+@app.route("/recommend-courses", methods=["POST"])
+@cross_origin()
+def recommend_courses():
+    data = request.json
+    existing_course_names = data.get("course_names", [])
+
+    if not existing_course_names:
+        return jsonify({"error": "No course names provided"}), 400
+
+    try:
+        recommended = generateRecommendedCourses(existing_course_names)
+        return jsonify({"recommendations": recommended}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     

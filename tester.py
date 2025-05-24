@@ -371,6 +371,45 @@ Only return a valid JSON object in the described format. Nothing else.
                 time.sleep(1)  # Adding a slight delay to avoid repeated generation issues
             else:
                 raise ValueError("Failed to generate a valid quiz after 5 attempts.")
+            
+def generateRecommendedCourses(genCourses):
+    prompt = f"""
+You are an AI-based course advisor. Based on the following courses the user has already generated:
+
+{genCourses}
+
+### TASK:
+Suggest 3 new relevant courses the user might be interested in next. Each should be logically connected to their learning history.
+
+### RULES:
+1. Output a **JSON list of 3 objects**.
+2. Each object must contain:
+    - "course_name": str
+    - "reason": str
+3. Ensure there is no overlap or duplication with existing courses.
+4. Keep course names concise but specific.
+5. Reasons should be clear, based on user learning progression or gaps.
+6. No padding text with the JSON. No greetings, no explanations, nothing. Just a complete, and usable JSON.
+
+"""
+
+    # Create prompt chain
+    recPrompt = ChatPromptTemplate.from_template(prompt)
+    recChain = recPrompt | model
+
+    # Invoke and parse
+    response_json = recChain.invoke({
+        "genCourses": genCourses
+    }).strip()
+    # print(response_json)
+    try:
+        recommended = json.loads(response_json)
+        if not isinstance(recommended, list) or not all("course_name" in r and "reason" in r for r in recommended):
+            raise ValueError("Invalid format from LLM.")
+    except Exception as e:
+        raise ValueError(f"LLM response error: {e}")
+
+    return recommended
 ##Testing Section
 
 courseName = "Machine Learning"
@@ -378,6 +417,9 @@ difficulty = "Intermediate"
 sectionCount = 3
 additionalInfo = "Focus on real-world applications and include a section on ethics."
 
+print(generateRecommendedCourses("Data Structures, Operating Systems"))
+
+'''
 # Step 1: Generate section names
 print("Generating Section Name")
 section_list = generate_section_names(courseName, difficulty, sectionCount, additionalInfo)
@@ -390,3 +432,4 @@ quiz_json = generate_test_from_all_sections(course_name=courseName, difficulty=d
 
 # Print or save the result
 print(quiz_json)
+'''

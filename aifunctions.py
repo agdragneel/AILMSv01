@@ -10,6 +10,7 @@ model = OllamaLLM(model="llama3.2:3b")
 
 # Global variable to hold the previous content for continuity
 previous_content = ""
+previous_test_questions = set()
 
 def generate_section_names(CName: str, Dif: str, SecNo: str, AdDetails: str):   #Prime Function
     
@@ -269,61 +270,70 @@ def getQuizJSONforSection(course_name, difficulty, noOfQuestions, sectionBody, m
     return json_question
 
 
-def generate_test_from_all_sections(course_name: str, difficulty: str, section_dict: dict, num_questions: int = 5):
+def generate_test_from_all_sections(course_name: str,
+                                     difficulty: str,
+                                     section_dict: dict,
+                                     num_questions: int = 5):
     """
     Generates a test by picking random sections and creating a question for each.
+    Ensures each question is unique compared to previous_test_questions.
+    If after 3 failed attempts it still duplicates, falls back to using section title.
     Returns a JSON string of the complete test.
     """
-    global previous_quizzes
+    global previous_test_questions
     questions = []
-
     section_titles = list(section_dict.keys())
 
     for i in range(num_questions):
-        print("PRevious Quizzes:")
-        print(previous_quizzes)
-        print("----------------------------")
-        print("Generating Test Question:",i+1)
+        print("Generating Test Question", i + 1)
         retries = 0
         while retries < 5:
             try:
                 # Pick a random section
                 random_section = random.choice(section_titles)
-                print("Selected Section:")
-                print(random_section)
                 section_content = section_dict[random_section]
 
-                # Generate quiz question using the new generateTest function
+                # After 3 retries, fallback to using only the section title
+                if retries >= 3:
+                    print(f"[Question {i+1}] Using fallback: section title instead of full content.")
+                    prompt_body = random_section
+                else:
+                    prompt_body = section_content
+
+                # Generate a quiz question
                 quiz_dict = generateTest(
                     course_name=course_name,
                     difficulty=difficulty,
-                    sectionBody=section_content,
-                    previous_quizzes=previous_quizzes
+                    sectionBody=prompt_body,
+                    previous_test_questions="; ".join(previous_test_questions)
                 )
+                qbody = quiz_dict.get("question_body", "").strip()
 
-                # Validate that the generated quiz is in the correct format
-                if not all(key in quiz_dict for key in ["question_body", "option1", "option2", "option3", "option4", "correctoptionNumber"]):
-                    raise ValueError("Invalid question format")
+                # Ensure uniqueness
+                if qbody in previous_test_questions:
+                    print(f"[Question {i+1}] Duplicate question detected. Retry #{retries+1}.")
+                    retries += 1
+                    continue
 
-                # Add the generated quiz question to the previous quizzes
-                previous_quizzes += " " + quiz_dict["question_body"]
-                
-                # Add the valid quiz_dict directly to the list of questions
+                # Record and add the new question
+                previous_test_questions.add(qbody)
                 questions.append(quiz_dict)
                 break
+
             except Exception as e:
-                print(f"[Attempt {retries+1}] Error generating question: {e}")
+                print(f"[Question {i+1} Attempt {retries+1}] Error: {e}")
                 retries += 1
 
-        if retries == 5:
-            print("Max retries reached. Skipping this question.")
+        if retries == 10:
+            print(f"Max retries reached for question {i+1}. Skipping.")
 
-    previous_quizzes = ""  # Clear for next use
+    # Reset for next call if needed
+    previous_test_questions.clear()
     return json.dumps(questions)
 
 
-def generateTest(course_name, difficulty, sectionBody, previous_quizzes):
-    QuizGenerationPrompt = """
+def generateTest(course_name, difficulty, sectionBody, previous_test_questions):
+    QuizGenerationPrompt = f"""
 You are an AI quiz generator. Your task is to create ONE multiple-choice question from the given section content.
 
 ### Rules:
@@ -336,12 +346,12 @@ You are an AI quiz generator. Your task is to create ONE multiple-choice questio
        "option4": "...",
        "correctoptionNumber": X
 
-2. You must provide exactly 4 options. Only one should be correct. Ensure no ambiguity.
-3. Avoid questions that are opinion-based, vague, or have more than one correct answer.
-4. The question should directly relate to the section body and match the difficulty: "{difficulty}".
-5. DO NOT include the course name, section title, or any extra explanation.
-6. DOUBLE CHECK that the correct answer is absolutely accurate and distinguishable.
-7. Do not repeat any questions from previous quizzes: {previous_quizzes}, I repeat, it SHOULD ABSOLUTELY NOT BE SAME QUESTION AS IN previous quizzes.
+2. Provide exactly 4 options. Only one should be correct.
+3. Avoid opinion-based or ambiguous questions, and make SURE it is a question. Not anything else.
+4. Match the difficulty: "{difficulty}".
+5. DO NOT include the course name or section title.
+6. Ensure the correct answer is accurate.
+7. Do not repeat any questions from previous quizzes: {previous_test_questions}. Questions should not be repeated in wording or context. If you feel it is hard to come up with a question that is unique and from the section, ask a similar logical or tricky question that can be answered with common sense and the section content provided.
 
 ### Section Content:
 {sectionBody}
@@ -354,54 +364,59 @@ Only return a valid JSON object in the described format. Nothing else.
     QuizPrompt = ChatPromptTemplate.from_template(QuizGenerationPrompt)
     QuizChain = QuizPrompt | model
 
-    # Retry generation up to 5 times if the JSON is not in the expected format
-    attempts = 0
-    while attempts < 5:
-        attempts += 1
-        
-        # Get the result and clean up any whitespace
-        quiz_json_str = QuizChain.invoke({
-            "course_name": course_name,
-            "difficulty": difficulty,
-            "sectionBody": sectionBody,
-            "previous_quizzes": previous_quizzes
-        }).strip()
+    # Invoke LLM once; uniqueness handled externally
+    quiz_json_str = QuizChain.invoke({
+        "course_name": course_name,
+        "difficulty": difficulty,
+        "sectionBody": sectionBody,
+        "previous_test_questions": previous_test_questions
+    }).strip()
 
-        try:
-            # Validate the structure of the generated JSON
-            quiz_dict = json.loads(quiz_json_str)
-            
-            # Check for the required keys in the JSON
-            required_keys = ["question_body", "option1", "option2", "option3", "option4", "correctoptionNumber"]
-            if all(key in quiz_dict for key in required_keys):
-                return quiz_dict
-            else:
-                raise ValueError("Generated JSON does not have the correct structure.")
-        
-        except (json.JSONDecodeError, ValueError):
-            # If invalid, retry after a short delay
-            if attempts < 5:
-                print(f"[Attempt {attempts}] Invalid or incomplete question format. Retrying...")
-                time.sleep(1)  # Adding a slight delay to avoid repeated generation issues
-            else:
-                raise ValueError("Failed to generate a valid quiz after 5 attempts.")
+    # Parse and validate
+    quiz_dict = json.loads(quiz_json_str)
+    required_keys = ["question_body", "option1", "option2", "option3", "option4", "correctoptionNumber"]
+    if not all(key in quiz_dict for key in required_keys):
+        raise ValueError("Invalid question format from LLM")
 
-##Testing Section
+    return quiz_dict
 
-courseName = "Machine Learning"
-difficulty = "Intermediate"
-sectionCount = 5
-additionalInfo = "Focus on real-world applications and include a section on ethics."
-''''
-# Step 1: Generate section names
-section_list = generate_section_names(courseName, difficulty, sectionCount, additionalInfo)
+def generateRecommendedCourses(genCourses):
+    prompt = f"""
+You are an AI-based course advisor. Based on the following courses the user has already generated:
 
-# Step 2: Generate section content
-section_dict = sectionDictionaryGenerator(course_name=courseName, section_list=section_list, wordlimit=200, difficulty=difficulty)
+{genCourses}
 
-# Step 3: Generate test on entire course content
-quiz_json = generate_test_from_all_sections(course_name=courseName, difficulty=difficulty, section_dict=section_dict, num_questions=10)
+### TASK:
+Suggest 3 new relevant courses the user might be interested in next. Each should be logically connected to their learning history.
 
-# Print or save the result
-print(quiz_json)
-'''
+### RULES:
+1. Output a **JSON list of 3 objects**.
+2. Each object must contain:
+    - "course_name": str
+    - "reason": str
+3. Ensure there is no overlap or duplication with existing courses.
+4. Keep course names concise but specific.
+5. Reasons should be clear, based on user learning progression or gaps.
+6. No padding text with the JSON. No greetings, no explanations, nothing. Just a complete, and usable JSON.
+
+"""
+
+    # Create prompt chain
+    recPrompt = ChatPromptTemplate.from_template(prompt)
+    recChain = recPrompt | model
+
+    # Invoke and parse
+    response_json = recChain.invoke({
+        "genCourses": genCourses
+    }).strip()
+    # print(response_json)
+    try:
+        recommended = json.loads(response_json)
+        if not isinstance(recommended, list) or not all("course_name" in r and "reason" in r for r in recommended):
+            raise ValueError("Invalid format from LLM.")
+    except Exception as e:
+        raise ValueError(f"LLM response error: {e}")
+
+    return recommended
+
+
