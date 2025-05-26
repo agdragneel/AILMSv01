@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS, cross_origin
-from aifunctions import generate_section_names, sectionDictionaryGenerator, getQuizJSONforSection,generateTest,generate_test_from_all_sections,generateRecommendedCourses
+from aifunctions import generate_section_names, sectionDictionaryGenerator, getQuizJSONforSection,generateTest,generate_test_from_all_sections,generateRecommendedCourses, generateTestFeedback
 import time
 
 app = Flask(__name__)
@@ -93,6 +93,21 @@ def recommend_courses():
     try:
         recommended = generateRecommendedCourses(existing_course_names)
         return jsonify({"recommendations": recommended}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+@app.route("/test-feedback", methods=["POST"])
+@cross_origin()
+def test_feedback():
+    data = request.json  # Get the test result object from frontend
+
+    if not data:
+        return jsonify({"error": "No test result provided"}), 400
+
+    try:
+        feedback = generateTestFeedback(data)
+        return jsonify({"feedback": feedback}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     

@@ -420,3 +420,43 @@ Suggest 3 new relevant courses the user might be interested in next. Each should
     return recommended
 
 
+def generateTestFeedback(testResult):
+    # Escape braces in JSON to avoid ChatPromptTemplate parsing errors
+    answers_json = json.dumps(testResult.get("answers", []), indent=2)
+    answers_json_escaped = answers_json.replace("{", "{{").replace("}", "}}")
+
+    prompt = f"""
+You are an AI feedback assistant for students taking quizzes.
+
+### STUDENT TEST RESULT:
+
+Course Name: {testResult.get("course_name", "Unknown")}
+Score: {testResult.get("score", 0)} / {testResult.get("total_questions", 0)}
+Date: {testResult.get("created_at", "N/A")}
+
+Answers:
+{answers_json_escaped}
+
+### TASK:
+Write one helpful sentence of feedback for the student, based on their performance.
+
+### RULES:
+1. Use a positive, constructive tone.
+2. Focus on specific patterns — strengths or areas to improve.
+3. **Do not mention exact question content.**
+4. Output must be just a **single sentence**, nothing else.
+5. No JSON, no greetings, no bullet points. Just the feedback line.
+
+"""
+
+    feedbackPrompt = ChatPromptTemplate.from_template(prompt)
+    feedbackChain = feedbackPrompt | model
+
+    feedback = feedbackChain.invoke({
+        "testResult": testResult
+    }).strip()
+
+
+    return feedback
+
+

@@ -410,6 +410,49 @@ Suggest 3 new relevant courses the user might be interested in next. Each should
         raise ValueError(f"LLM response error: {e}")
 
     return recommended
+
+
+
+def generateTestFeedback(testResult):
+    # Escape braces in JSON to avoid ChatPromptTemplate parsing errors
+    answers_json = json.dumps(testResult.get("answers", []), indent=2)
+    answers_json_escaped = answers_json.replace("{", "{{").replace("}", "}}")
+
+    prompt = f"""
+You are an AI feedback assistant for students taking quizzes.
+
+### STUDENT TEST RESULT:
+
+Course Name: {testResult.get("course_name", "Unknown")}
+Score: {testResult.get("score", 0)} / {testResult.get("total_questions", 0)}
+Date: {testResult.get("created_at", "N/A")}
+
+Answers:
+{answers_json_escaped}
+
+### TASK:
+Write one helpful sentence of feedback for the student, based on their performance.
+
+### RULES:
+1. Use a positive, constructive tone.
+2. Focus on specific patterns — strengths or areas to improve.
+3. **Do not mention exact question content.**
+4. Output must be just a **single sentence**, nothing else.
+5. No JSON, no greetings, no bullet points. Just the feedback line.
+
+"""
+
+    feedbackPrompt = ChatPromptTemplate.from_template(prompt)
+    feedbackChain = feedbackPrompt | model
+
+    feedback = feedbackChain.invoke({
+        "testResult": testResult
+    }).strip()
+
+
+    return feedback
+
+
 ##Testing Section
 
 courseName = "Machine Learning"
@@ -417,7 +460,43 @@ difficulty = "Intermediate"
 sectionCount = 3
 additionalInfo = "Focus on real-world applications and include a section on ethics."
 
-print(generateRecommendedCourses("Data Structures, Operating Systems"))
+
+# def test_generateFeedback():
+#     sample_test_result = {
+#         "course_name": "Intro to Algorithms",
+#         "score": 7,
+#         "total_questions": 10,
+#         "created_at": "2025-05-26T12:00:00Z",
+#         "answers": [
+#             {
+#                 "question_body": "What is a binary search?",
+#                 "option1": "A search algorithm",
+#                 "option2": "A sorting algorithm",
+#                 "option3": "A data structure",
+#                 "option4": "None",
+#                 "correctAnswer": "A search algorithm",
+#                 "userAnswer": "A search algorithm"
+#             },
+#             {
+#                 "question_body": "What does O(n) mean?",
+#                 "option1": "Linear time",
+#                 "option2": "Constant time",
+#                 "option3": "Quadratic time",
+#                 "option4": "Logarithmic time",
+#                 "correctAnswer": "Linear time",
+#                 "userAnswer": "Quadratic time"
+#             }
+#         ]
+#     }
+
+#     feedback = generateTestFeedback(sample_test_result)
+#     print("Feedback from AI:")
+#     print(feedback)
+
+# test_generateFeedback()
+
+
+#print(generateRecommendedCourses("Data Structures, Operating Systems"))
 
 '''
 # Step 1: Generate section names
